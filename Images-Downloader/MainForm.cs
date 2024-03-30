@@ -29,11 +29,7 @@ namespace Images_Downloader
             string image_name = image_data[image_data.Length - 1];
             try
             {
-                string dir_path = Path.GetFullPath(LocalDirPathBox.Text);
-                if (!Directory.Exists(dir_path))
-                {
-                    Directory.CreateDirectory(dir_path);
-                }
+                string dir_path = Path.GetFullPath(LocalDirPathBox.Text);             
                 HttpClientHandler httpClientHandler = new HttpClientHandler();
                 httpClientHandler.AllowAutoRedirect = true;
                 using (var client = new HttpClient(httpClientHandler))
@@ -68,8 +64,13 @@ namespace Images_Downloader
         {
             if (ImagesUrlsList.Items.Count < 1)
             {
-                MessageBox.Show("Изображения для выкачивания не обнаружены!");
+                MessageBox.Show("Images not found!");
                 return;
+            }
+            string dir_path = Path.GetFullPath(LocalDirPathBox.Text);
+            if (!Directory.Exists(dir_path))
+            {
+                Directory.CreateDirectory(dir_path);
             }
             DownloadProgress.Maximum = ImagesUrlsList.Items.Count;
             DownloadProgress.Value = 0;
@@ -82,7 +83,6 @@ namespace Images_Downloader
         private void FileDirSelector_Click(object sender, EventArgs e)
         {
             FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
-
             if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
             {
                 string directoryPath = folderBrowserDialog.SelectedPath;
@@ -95,32 +95,65 @@ namespace Images_Downloader
                     string[] lines = File.ReadAllLines(file);
                     foreach (string line in lines)
                     {
-                        MatchCollection matches = Regex.Matches(line, @"(http(s)?://.+?\.(jpg|jpeg|png|gif))");
-                        foreach (Match match in matches)
-                        {
-                            ImagesUrlsList.Items.Add(match.Groups[1].Value);
-                        }
+                        pushLinksToList(getImagesLinks(line));
                     }
                 }
 
             }
         }
-
+        private string clipboard_temp = ""; //Дабы бесконечно не обрабатывать один и тот же контент с буфера обмена
         private void ClipboardChecker_Tick(object sender, EventArgs e)
         {
-            string clipboard_content = "";
             try {
-                clipboard_content = Clipboard.GetText();
-            } catch { }
-            MatchCollection matches = Regex.Matches(clipboard_content, @"(http(s)?://.+?\.(jpg|jpeg|png|gif))");
+                string clipboard_source = Clipboard.GetText();
+                if (!clipboard_temp.Equals(clipboard_source)) {
+                    pushLinksToList(getImagesLinks(clipboard_source));
+                   
+                    //Дабы бесконечно не обрабатывать один и тот же контент с буфера обмена
+                    clipboard_temp = clipboard_source;
+                }
+               
+
+                
+            } catch (Exception ex)
+            {
+                Console.WriteLine(string.Format("[Error] Clipboard procedure fail! Error: {0}", ex.Message));
+            }
+           
+        }
+        
+        //Парсинг ссылок из string контента по регулярному выражению
+        private string[] getImagesLinks(string content) {
+            List<string> founded_links = new List<string>();
+            MatchCollection matches = Regex.Matches(content, @"(http(s)?://.+?\.(jpg|jpeg|png|gif))");
             foreach (Match match in matches)
             {
-                string potential_image_url = match.Groups[1].Value;
-                if (!ImagesUrlsList.Items.Contains(potential_image_url)) {
-                    ImagesUrlsList.Items.Add(potential_image_url);
-                    SystemSounds.Beep.Play();
+                string link = match.Groups[1].Value;
+                if (!founded_links.Contains(link)) {
+                    founded_links.Add(link);
                 }
             }
+            return founded_links.ToArray();
         }
+
+        private void pushLinksToList(string[] links) {
+            bool changed = false;
+
+            foreach (string link in links)
+            {
+                if (!ImagesUrlsList.Items.Contains(link))
+                {
+                    ImagesUrlsList.Items.Add(link);
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                SystemSounds.Beep.Play();
+            }
+        }
+        
+
+
     }
 }
